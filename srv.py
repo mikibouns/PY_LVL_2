@@ -1,5 +1,6 @@
 import socket
 import time
+import select
 
 from secondary_func import cl_srv_options, get_msg, send_msg
 from data_base import SERVICE_MSG, users_list
@@ -30,24 +31,30 @@ class Srv:
         pass
 
     def disabling_user(self, data):
-        users_list[data['account_name']]['state'] = 'offline'
-        print('User {} is offline!'.format(data['account_name']))
+        user_name = data['account_name']
+        if users_list[user_name]['status'] == 'authorized':
+            users_list[user_name]['state'] = 'offline'
+        elif users_list[user_name]['status'] == 'unauthorized':
+            users_list.pop(users_list, True)
+
         return SERVICE_MSG['quit']
 
-    def check_user_name(self, data):
-        user_name = data['user']['account_name'].lower()
-        if user_name in users_list:
-            for item, value in users_list.items():
-                print('{} >> {}'.format(item, value['state']))
-            return SERVICE_MSG['4xx'][409]
-        # else:
-        #     users_list[user_name] = {'passwd': None,
-        #                              'status': 'unauthorized',
-        #                              'state': 'online'}
-        #     for item, value in users_list.items():
-        #         print('{} >> {}'.format(item, value['state']))
-        #     return SERVICE_MSG['2xx'][200]
-        return {}
+    def check_auth_data(self, data):
+        user_name = data['user']['account_name']
+        if data['action'] == 'authenticate':
+            if user_name in users_list and \
+                            users_list[user_name]['status'] == 'authorized' and \
+                            data['user']['password'] == users_list[user_name]['passwd']:
+                return SERVICE_MSG['2xx'][200]
+            else:
+                return SERVICE_MSG['4xx'][402]
+        if data['action'] == 'presence':
+            if user_name in users_list:
+                return SERVICE_MSG['4xx'][409]
+            else:
+                users_list[user_name] = {'status': 'unauthorized',
+                                         'state': 'online'}
+                return SERVICE_MSG['2xx'][200]
 
     def presence_check(self):
         data = {"action": "probe"}
@@ -59,7 +66,7 @@ class Srv:
         if 'action' in data:
             # Присутствие. Сервисное сообщение для извещения сервера о присутствии клиента​ online
             if data['action'] == 'presence':
-                response = self.check_user_name(data)
+                response = self.check_auth_data(data)
             # ​Простое​ сообщение​ пользователю​ или​ в​ чат
             elif data['action'] == 'msg':
                 pass
@@ -68,16 +75,13 @@ class Srv:
                 response = self.disabling_user(data)
             # Авторизация на сервере
             elif data['action'] == 'authenticate':
-                response = self.auth_user(data)
+                response = self.check_auth_data(data)
             # Присоединиться к чату
             elif data['action'] == 'join':
                 pass
             # Покинуть чат
             elif data['action'] == 'leave':
                 pass
-
-            elif data['action'] == 'test':
-                response = {'action': 'test'}
 
             response['time'] = time.ctime(time.time())
             return response

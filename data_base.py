@@ -74,7 +74,6 @@ users_list = {
         'state': 'offline'
     },
     'maria': {
-        'passwd': None,
         'status': 'unauthorized',
         'state': 'online'
     },

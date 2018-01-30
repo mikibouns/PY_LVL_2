@@ -11,42 +11,54 @@ class Client:
         self.password = None
 
     def menu(self):
-        print('    HELLO {}!!!'.format(self.account_name.upper()))
         while True:
             print('''
-    ######################## MENU ########################
-    1. Users list
-    2. User to user
-    3. User to chat
-    4. Authorization
-    5. Quit
-    ######################################################
-            ''')
+        ##################### MAIN MENU ######################
+        1. Log in
+        2. Log in as guest
+        3. To register
+        4. Quit
+        ######################################################
+                ''')
             data = input('Enter the number of menu: ')
             if not data.isdigit():
                 continue
             elif data == '1':
-                print('Ok')
+                return self._login()
             elif data == '2':
-                print('Ok')
+                return self._login_as_guest()
             elif data == '3':
-                print('Ok')
+                print('REGISTER')
             elif data == '4':
-                print('Ok')
-            elif data == '5':
                 return self.quit()
 
-    def create_user_name(self):
+    def messenger_menu(self):
         while True:
-            self.account_name = input('Enter your username: ')
-            if len(self.account_name) < 10:
-                return self.service_msg()
+            print('''
+        ################### MESSENGER MENU ###################
+        1. User to user
+        2. User to chat
+        3. Back to menu
+        4. Quit
+        ######################################################
+                    ''')
+            data = input('Enter the number of menu: ')
+            if not data.isdigit():
+                continue
+            elif data == '1':
+                pass
+            elif data == '2':
+                pass
+            elif data == '3':
+                return self.menu()
+            elif data == '4':
+                return self.quit()
 
     def client_response(self, data):
         if isinstance(data, dict):
             if 'action' in data:
                 if data['action'] == 'probe':
-                    data = self.service_msg()
+                    data = self.menu()
                 elif data['action'] == 'msg' and data['to'][0] == '#':
                     data = self.user_to_chat()
                 elif data['action'] == 'msg':
@@ -54,8 +66,7 @@ class Client:
 
             elif 'response' in data:
                 if data['response'] == 200:
-                    data = self.menu()
-
+                    data = self.messenger_menu()
                 elif data['response'] == 201:
                     pass
                 elif data['response'] == 202:
@@ -65,14 +76,15 @@ class Client:
                 elif data['response'] == 401:
                     pass
                 elif data['response'] == 402:
-                    pass
+                    print(data['error'])
+                    data = self.menu()
                 elif data['response'] == 403:
                     pass
                 elif data['response'] == 404:
                     pass
                 elif data['response'] == 409:
                     print(data['error'])
-                    data = self.create_user_name()
+                    data = self.menu()
                 elif data['response'] == 410:
                     pass
                 elif data['response'] == 500:
@@ -80,6 +92,23 @@ class Client:
 
             data['time'] = time.ctime(time.time())
             return data
+
+    def _login_as_guest(self):
+        while True:
+            self.account_name = input('Enter your username: ')
+            if len(self.account_name) < 25:
+                return self.service_msg()
+            else:
+                print('Please enter a username of up to 25 characters!!!')
+
+    def _login(self):
+        while True:
+            self.account_name = input('Enter your username: ')
+            self.password = input('Enter your password: ')
+            if len(self.account_name) < 25:
+                return self.auth_user()
+            else:
+                print('Please enter a username of up to 25 characters!!!')
 
     def service_msg(self):
         message = {'action': 'presence',
@@ -132,17 +161,19 @@ class Client:
 
     def quit(self):
         data = {'action': 'quit',
-                'account_name': self.account_name}
+                'account_name': self.account_name,
+                'time': time.ctime(time.time())}
         return data
+
 
 def main():
     data = cl_client_options()
     if isinstance(data, dict):
         with socket.create_connection((data['addr'], data['port'])) as sock:
             user = Client()
-            user.create_user_name()
             while True:
                 data_msg = get_msg(sock)
+                print(data_msg)
                 data_msg = user.client_response(data_msg)
                 if 'action' in data_msg:
                     if data_msg['action'] == 'quit':
