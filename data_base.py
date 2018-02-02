@@ -88,3 +88,12 @@ users_list = {
         'state': 'online'
     }
 }
+
+chats_list = {
+    'chat_1': ['user1,'
+               'user2',
+               'user3',
+               'igor'],
+    'chat_2': ['maria',
+               'elena']
+}

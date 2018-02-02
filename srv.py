@@ -1,9 +1,8 @@
 import socket
 import time
-import select
 
 from secondary_func import cl_srv_options, get_msg, send_msg
-from data_base import SERVICE_MSG, users_list
+from data_base import SERVICE_MSG, users_list, chats_list
 
 class CeateSrvSocket:
     '''
@@ -31,11 +30,15 @@ class Srv:
         pass
 
     def disabling_user(self, data):
+        '''Возвращает сервисное сообщение с подтверждением отключения клиента,
+        если клиент авторизован - переводит его в состояние offline,
+        если не авторизован - удаляет из текущего словаря клиентов'''
         user_name = data['account_name']
-        if users_list[user_name]['status'] == 'authorized':
-            users_list[user_name]['state'] = 'offline'
-        elif users_list[user_name]['status'] == 'unauthorized':
-            users_list.pop(users_list, True)
+        if user_name is not None and user_name in users_list:
+            if users_list[user_name]['status'] == 'authorized':
+                users_list[user_name]['state'] = 'offline'
+            elif users_list[user_name]['status'] == 'unauthorized':
+                users_list.pop(users_list, True)
 
         return SERVICE_MSG['quit']
 
@@ -45,6 +48,7 @@ class Srv:
             if user_name in users_list and \
                             users_list[user_name]['status'] == 'authorized' and \
                             data['user']['password'] == users_list[user_name]['passwd']:
+
                 return SERVICE_MSG['2xx'][200]
             else:
                 return SERVICE_MSG['4xx'][402]
@@ -52,8 +56,6 @@ class Srv:
             if user_name in users_list:
                 return SERVICE_MSG['4xx'][409]
             else:
-                users_list[user_name] = {'status': 'unauthorized',
-                                         'state': 'online'}
                 return SERVICE_MSG['2xx'][200]
 
     def presence_check(self):
@@ -94,7 +96,6 @@ def main():
         with CeateSrvSocket(data['addr'], data['port']) as sock:
             conn, addr = sock.accept()
             with conn:
-                send_msg(conn, srv.presence_check())
                 while True:
                     data_msg = get_msg(conn)
                     print(data_msg)

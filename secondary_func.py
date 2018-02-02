@@ -2,20 +2,16 @@ import ipaddress
 import sys
 import json
 
-from decorators import log
 
-
-@log
 def get_msg(sock):
     data_msg = _convert_data(sock.recv(1024))
     return data_msg
 
-@log
+
 def send_msg(sock, data):
     sock.send(_convert_data(data))
 
 
-@log
 def _convert_data(data, encoding_type='utf-8'):
     '''
     Функция конвертирует полученные данные из bytes в dict и обратно в зависимости от входных данных,
@@ -42,7 +38,6 @@ def _convert_data(data, encoding_type='utf-8'):
     return data
 
 
-@log
 def _check_ip(ip):
     '''
     Валидация ip адреса:
@@ -61,7 +56,6 @@ def _check_ip(ip):
         return True
 
 
-@log
 def cl_srv_options(argv=sys.argv):
     '''
     srv.py -a <addr> -p <port>
@@ -120,7 +114,6 @@ def cl_srv_options(argv=sys.argv):
         return addr_port
 
 
-@log
 def cl_client_options(argv=sys.argv):
     '''
     client.py <addr> [<port>]

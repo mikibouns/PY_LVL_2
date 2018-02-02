@@ -9,6 +9,20 @@ account_name_out_of_list = ['123', 'galia', 'seva', 'sasha']
 passwd_409 = ['hjfdsklfa', '45658456', 4562315]
 passwd_200 = ['12345678']
 
+users_list = {
+              'igor': {'passwd': '12345678',
+                       'status': 'authorized',
+                       'state': 'offline'},
+              'maria': {'status': 'unauthorized',
+                        'state': 'online'},
+              'vasia': {'passwd': '12345678',
+                        'status': 'authorized',
+                        'state': 'offline'},
+              'elena': {'passwd': '12345678',
+                        'status': 'authorized',
+                        'state': 'online'}
+}
+
 presence_msg = {'action': 'presence',
                 'type': 'status',
                 'user': {
@@ -69,6 +83,10 @@ class TestSrv:
         authenticate_msg['user']['password'] = passwd
         assert srv_fixture.check_auth_data(authenticate_msg) == {'response': 402,
                                                                  'error': 'incorrect login or password'}
+
+    def test_disabling_user(self, srv_fixture):
+        assert srv_fixture.disabling_user({'action': 'quit', 'account_name': 'user'}) == {'action': 'quit'}
+
 
 if __name__ == '__main__':
     pass
