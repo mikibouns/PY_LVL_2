@@ -1,8 +1,10 @@
 import sys
 from functools import wraps
+import logging
 
 import log_config
 
+app_log = logging.getLogger('app')
 
 def log(func):
     '''
@@ -15,14 +17,14 @@ def log(func):
             'modulename': sys.argv[0],
             'error': ''
         }
-        log_config.app_log.info('Module: %(modulename)s, function: %(funcname)s ==> START', params)
+        app_log.info('Module: %(modulename)s, function: %(funcname)s ==> START', params)
         try:
             result = func(*args, **kwargs)
         except Exception as e:
             params['error'] = str(e)
-            log_config.app_log.error('Module: %(modulename)s, function: %(funcname)s, error: %(error)s', params)
+            app_log.error('Module: %(modulename)s, function: %(funcname)s, error: %(error)s', params)
         else:
-            log_config.app_log.info('Module: %(modulename)s, function: %(funcname)s ==> END', params)
+            app_log.info('Module: %(modulename)s, function: %(funcname)s ==> COMPLETED', params)
             return result
     return wrapper
 

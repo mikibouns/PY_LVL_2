@@ -1,117 +1,126 @@
 import socket
-import time
+import threading
 
-from secondary_func import cl_srv_options, get_msg, send_msg
-from data_base import SERVICE_MSG, users_list, chats_list
+from secondary_func import cl_options, get_msg, send_msg
+from data_base import DataBase
+from decorators import log
 
-class CeateSrvSocket:
-    '''
-    Менеджер контекста для создания сокета, гарантированно закрывает сокет.
-    Выводит информацию об ошибке.
-    '''
-
-    def __init__(self, addr, port):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((addr, port))
-        self.sock.listen(5)
-
-    def __enter__(self):
-        return self.sock
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            print('{}: {}'.format(exc_type, exc_val))
-        self.sock.close()
-        return True
-
+db = DataBase()
 
 class Srv:
-    def auth_user(self, data):
+    messages_list = []
+
+    def __init__(self, sock):
+        self.encoding = 'utf-8'
+        a = cl_options()
+        self.sock = sock
+        self.sock.bind((a['addr'], a['port']))
+        self.sock.listen(10)
+
+    def run_srv(self):
+        print('server is waiting for connection...')
+        while True:
+            conn, self.addr = self.sock.accept()
+            print('connected client: {}:{}'.format(self.addr[0], self.addr[1]))
+            self.account_name = self.check_account_data(conn)
+            th = threading.Thread(target=self.handle_client, args=(conn, ))
+            th.start()
+
+    def check_account_data(self, conn):
+        while True:
+            self.account_name = conn.recv(1024).decode(self.encoding)
+            if self.account_name in db.clients_list:
+                conn.send(b'409')
+            else:
+                db.clients_list[self.account_name] = conn
+                conn.send(b'200')
+                break
+        return self.account_name
+
+    def handle_client(self, conn):
+        try:
+            chat_control = ChatController(self, conn)
+            while chat_control.run_chats_controller():
+                chat_control.join_chat()
+                # data = conn.recv(1024).decode(self.encoding)
+                # if not data:
+                #     break
+                # data = 'from {}: {}'.format(self.account_name, data)
+                # print(data)
+                # self._broadcast_request(data)
+                pass
+        except ConnectionResetError:
+            self.delete_client()
+
+    def _broadcast_request(self, data):
+        for client in db.clients_list.values():
+            client.send(data.encode(self.encoding ))
+
+    def delete_client(self):
+        try:
+            self.account_name = db.clients_list.pop(self.account_name)
+        except Exception as e:
+            print(e)
+            return False
+        else:
+            print('disconnected client: {}:{}'.format(self.addr[0], self.addr[1]))
+            return self.account_name
+
+
+class ChatController:
+    def __init__(self, srv, conn):
+        self.srv = srv
+        self.conn = conn
+
+    def run_chats_controller(self):
+        while True:
+            data = self.conn.recv(1024).decode(self.srv.encoding)
+            if data == 'quit':
+                self.srv.delete_client()
+                self.conn.send(b'quit')
+                return False
+            elif data == 'chats_list':
+                send_msg(self.conn, db.chats_list)
+            elif data == 'join_chat':
+                return True
+
+
+    def add_chat(self):
         pass
 
-    def disabling_user(self, data):
-        '''Возвращает сервисное сообщение с подтверждением отключения клиента,
-        если клиент авторизован - переводит его в состояние offline,
-        если не авторизован - удаляет из текущего словаря клиентов'''
-        user_name = data['account_name']
-        if user_name is not None and user_name in users_list:
-            if users_list[user_name]['status'] == 'authorized':
-                users_list[user_name]['state'] = 'offline'
-            elif users_list[user_name]['status'] == 'unauthorized':
-                users_list.pop(users_list, True)
+    def join_chat(self):
+        chat = self.conn.recv(1024).decode(self.srv.encoding)
+        if chat in db.chats_list:
+            self.conn.send(b'200')
+            db.chats_list[chat].add_to_chat(self.conn)
+            while True:
+                db.chats_list[chat].broadcast_request(self.conn)
+        else:
+            self.conn.send(b'404')
 
-        return SERVICE_MSG['quit']
+    def leave_chat(self):
+        pass
 
-    def check_auth_data(self, data):
-        user_name = data['user']['account_name']
-        if data['action'] == 'authenticate':
-            if user_name in users_list and \
-                            users_list[user_name]['status'] == 'authorized' and \
-                            data['user']['password'] == users_list[user_name]['passwd']:
 
-                return SERVICE_MSG['2xx'][200]
-            else:
-                return SERVICE_MSG['4xx'][402]
-        if data['action'] == 'presence':
-            if user_name in users_list:
-                return SERVICE_MSG['4xx'][409]
-            else:
-                return SERVICE_MSG['2xx'][200]
 
-    def presence_check(self):
-        data = {"action": "probe"}
-        data['time'] = time.ctime(time.time())
-        return data
+class Chat:
+    def __init__(self):
+        self.user = []
+        self.encoding = 'utf-8'
 
-    def srv_response(self, data):
-        response = {}
-        if 'action' in data:
-            # Присутствие. Сервисное сообщение для извещения сервера о присутствии клиента​ online
-            if data['action'] == 'presence':
-                response = self.check_auth_data(data)
-            # ​Простое​ сообщение​ пользователю​ или​ в​ чат
-            elif data['action'] == 'msg':
-                pass
-            # Отключение от сервера
-            elif data['action'] == 'quit':
-                response = self.disabling_user(data)
-            # Авторизация на сервере
-            elif data['action'] == 'authenticate':
-                response = self.check_auth_data(data)
-            # Присоединиться к чату
-            elif data['action'] == 'join':
-                pass
-            # Покинуть чат
-            elif data['action'] == 'leave':
-                pass
+    def add_to_chat(self, conn):
+        self.user.append(conn)
 
-            response['time'] = time.ctime(time.time())
-            return response
-
+    def broadcast_request(self, conn):
+        data = conn.recv(1024).decode(self.encoding)
+        print(data)
+        for client in self.user:
+            client.send(data.encode(self.encoding))
 
 def main():
-    srv = Srv()
-    data = cl_srv_options()
-    if isinstance(data, dict):
-        with CeateSrvSocket(data['addr'], data['port']) as sock:
-            conn, addr = sock.accept()
-            with conn:
-                while True:
-                    data_msg = get_msg(conn)
-                    print(data_msg)
-                    if data_msg:
-                        response = srv.srv_response(data_msg)
-                        time.sleep(1)
-                        send_msg(conn, response)
-                    elif data is None:
-                        continue
-                    else:
-                        break
-
-    else:
-        for i in data:
-            print(i)
-
+    with socket.socket() as sock:
+        srv = Srv(sock)
+        srv.run_srv()
 
 if __name__ == '__main__':
     main()

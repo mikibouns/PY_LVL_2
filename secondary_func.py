@@ -1,6 +1,8 @@
 import ipaddress
 import sys
+import os
 import json
+import argparse
 
 
 def get_msg(sock):
@@ -56,101 +58,33 @@ def _check_ip(ip):
         return True
 
 
-def cl_srv_options(argv=sys.argv):
-    '''
-    srv.py -a <addr> -p <port>
-    Параметры командной строки:
-    -p <port> - TCP-порт для работы (по умолчанию использует порт 7777)
-    -a <addr> - IP-адрес для прослушивания (по умолчанию слушает все доступные адреса)
-    >>> cl_srv_options(['D:\IGOR\PYTHON\python_lvl2\python_lvl2_lesson2', '-a', '192.168.3.100', '-p', '55566'])
-    {'addr': '192.168.3.100', 'port': 55566}
-    >>> cl_srv_options(['D:\IGOR\PYTHON\python_lvl2\python_lvl2_lesson2'])
-    {'addr': '0.0.0.0', 'port': 7777}
-    '''
-    addr_port = {'addr': '0.0.0.0', 'port': 7777}
+def cl_options():
+    help_cli = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(description='CLI_app')
+
+    parser.add_argument('--a',
+                        type=str, default='127.0.0.1',
+                        help='{} --a <addr> - IP-адрес (по умолчанию 127.0.0.1)'.format(help_cli))
+    parser.add_argument('--p',
+                        type=int, default='7777',
+                        help='{} --p <port> - TCP-порт (по умолчанию использует порт 7777)'.format(help_cli))
+    args = parser.parse_args()
+
+    addr_port = {'addr': args.a, 'port': args.p}
     error = []
-    for item, value in enumerate(argv):
 
-        if value == '?':
-            error.append('''
-    Для получения справки: client.py ?
-
-    srv.py -a <addr> -p <port>
-    Параметры командной строки:
-    -p <port> - TCP-порт для работы (по умолчанию использует порт 7777)
-    -a <addr> - IP-адрес для прослушивания (по умолчанию слушает все доступные адреса)
-            ''')
-            break
-
-        if value == '-a':
-            try:
-                argv[item + 1]
-            except IndexError:
-                error.append('!!!enter the ip address!!!')
-                continue
-            else:
-                if _check_ip(argv[item + 1]):
-                    addr_port['addr'] = argv[item + 1]
-                else:
-                    error.append('!!!ip address is incorrect!!!')
-
-        elif value == '-p':
-            try:
-                argv[item + 1]
-            except IndexError:
-                error.append('!!!enter the port!!!')
-                continue
-            else:
-                if argv[item + 1].isdigit():
-                    if int(argv[item + 1]) <= 65535:
-                        addr_port['port'] = int(argv[item + 1])
-                    else:
-                        error.append('!!!port is incorrect, maximum allowable value 65535!!!')
-                else:
-                    error.append('!!!port is incorrect, the value must consist of digits!!!')
-    if error:
-        return error
+    if _check_ip(args.a):
+        addr_port['addr'] = args.a
     else:
-        return addr_port
+        error.append('!!!ip address is incorrect!!!')
 
 
-def cl_client_options(argv=sys.argv):
-    '''
-    client.py <addr> [<port>]
-    Параметры командной строки:
-    <port> - TCP-порт для работы (по умолчанию использует порт 7777)
-    <addr> - IP-адрес(по умолчанию 127.0.0.1)
-    Функция возвращает словать со значениями ip-адреса и tcp-порта,
-    если параметры не переданны, функция возвращает адрес и порт по умолчанию (address: 127.0.0.1, port: 7777),
-    если параметры неверны, возвращает список с сообщениями об ошибках.
-    >>> cl_client_options(['D:\IGOR\PYTHON\python_lvl2\python_lvl2_lesson2', '192.168.3.100', '55566'])
-    {'addr': '192.168.3.100', 'port': 55566}
-    '''
-    addr_port = {'addr': '127.0.0.1', 'port': 7777}
-    error = []
-    for item, value in enumerate(argv):
-        if item == 1:
-            if value == '?':
-                error.append('''
-    Для получения справки: client.py ?
+    if int(args.p) <= 65535:
+        addr_port['port'] = int(args.p)
+    else:
+            error.append('!!!port is incorrect, maximum allowable value 65535!!!')
 
-    client.py <addr> [<port>]
-    Параметры командной строки:
-    <port> - TCP-порт для работы (по умолчанию использует порт 7777)
-    <addr> - IP-адрес(по умолчанию 127.0.0.1)
-                   ''')
-            elif _check_ip(value):
-                addr_port['addr'] = value
-            else:
-                error.append('!!!ip address is incorrect!!!')
-        if item == 2:
-            if value.isdigit():
-                if int(value) <= 65535:
-                    addr_port['port'] = int(value)
-                else:
-                    error.append('!!!port is incorrect, maximum allowable value 65535!!!')
-            else:
-                error.append('!!!port is incorrect, the value must consist of digits!!!')
     if error:
         return error
     else:
@@ -158,7 +92,4 @@ def cl_client_options(argv=sys.argv):
 
 
 if __name__ == '__main__':
-    answear = _convert_data({'data': 'hello'})
-    _check_ip('192.168.1.1')
-    cl_srv_options(['D:\IGOR\PYTHON\python_lvl2\python_lvl2_lesson2', '-a', '192.168.3.100', '-p', '55566'])
-    cl_client_options(['D:\IGOR\PYTHON\python_lvl2\python_lvl2_lesson2', '192.168.3.100', '55566'])
+    pass
