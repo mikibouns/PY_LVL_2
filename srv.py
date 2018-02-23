@@ -7,9 +7,20 @@ from decorators import log
 
 db = DataBase()
 
-class Srv:
-    messages_list = []
 
+class context_mgr:
+    def __init__(self, current_chat):
+        self.current_chat = current_chat
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+
+class Srv:
     def __init__(self, sock):
         self.encoding = 'utf-8'
         a = cl_options()
@@ -23,7 +34,8 @@ class Srv:
             conn, self.addr = self.sock.accept()
             print('connected client: {}:{}'.format(self.addr[0], self.addr[1]))
             self.account_name = self.check_account_data(conn)
-            th = threading.Thread(target=self.handle_client, args=(conn, ))
+            chat_control = ChatController(self, conn, self.account_name)
+            th = threading.Thread(target=self.handle_client, args=(chat_control, ))
             th.start()
 
     def check_account_data(self, conn):
@@ -37,92 +49,124 @@ class Srv:
                 break
         return self.account_name
 
-    def handle_client(self, conn):
-        try:
-            chat_control = ChatController(self, conn)
-            while chat_control.run_chats_controller():
-                chat_control.join_chat()
-                # data = conn.recv(1024).decode(self.encoding)
-                # if not data:
-                #     break
-                # data = 'from {}: {}'.format(self.account_name, data)
-                # print(data)
-                # self._broadcast_request(data)
-                pass
-        except ConnectionResetError:
-            self.delete_client()
-
-    def _broadcast_request(self, data):
-        for client in db.clients_list.values():
-            client.send(data.encode(self.encoding ))
+    def handle_client(self, chat_control):
+            try:
+                while chat_control.chats_controller_menu():
+                    chat_control.join_chat()
+            except ConnectionResetError:
+                self.delete_client()
 
     def delete_client(self):
         try:
             self.account_name = db.clients_list.pop(self.account_name)
         except Exception as e:
             print(e)
-            return False
         else:
             print('disconnected client: {}:{}'.format(self.addr[0], self.addr[1]))
             return self.account_name
 
 
 class ChatController:
-    def __init__(self, srv, conn):
+    def __init__(self, srv, conn, account_name):
         self.srv = srv
         self.conn = conn
+        self.account_name = account_name
+        self.current_chat = None
 
-    def run_chats_controller(self):
+    def chats_controller_menu(self):
         while True:
-            data = self.conn.recv(1024).decode(self.srv.encoding)
-            if data == 'quit':
+            data = get_msg(self.conn)
+
+            if data['action'] == 'chats_list':
+                chats_list = [str(i) for i in db.chats_list.keys()]
+                chats_list.sort()
+                send_msg(self.conn, chats_list)
+            elif data['action'] == 'add_chat':
+                self.current_chat = data['msg']
+                if self.current_chat not in db.chats_list:
+                    self.add_chat(self.current_chat)
+                    self.conn.send(b'200')
+                    return True
+                else:
+                    self.conn.send(b'404')
+            elif data['action'] == 'join_chat':
+                self.current_chat = data['msg']
+                if self.current_chat in db.chats_list:
+                    self.conn.send(b'200')
+                    return True
+                else:
+                    self.conn.send(b'404')
+            elif data['action'] == 'quit':
                 self.srv.delete_client()
                 self.conn.send(b'quit')
                 return False
-            elif data == 'chats_list':
-                send_msg(self.conn, db.chats_list)
-            elif data == 'join_chat':
-                return True
 
-
-    def add_chat(self):
-        pass
+    def add_chat(self, chat_name):
+        try:
+            chat = Chat()
+            db.chats_list[chat_name] = chat
+        except Exception as e:
+            print(e)
 
     def join_chat(self):
-        chat = self.conn.recv(1024).decode(self.srv.encoding)
-        if chat in db.chats_list:
-            self.conn.send(b'200')
-            db.chats_list[chat].add_to_chat(self.conn)
-            while True:
-                db.chats_list[chat].broadcast_request(self.conn)
-        else:
-            self.conn.send(b'404')
+        db.chats_list[self.current_chat].add_to_chat(self.conn, self.account_name)
+        chat = db.chats_list[self.current_chat]
+        client = db.clients_list[self.account_name]
+        while True:
+            try:
+                data = client.recv(1024).decode(self.srv.encoding)
+                if data == 'quit':
+                    self.leave_chat(self.current_chat)
+                    break
+                else:
+                    data = '{}: {}'.format(self.account_name, data)
+                    chat.broadcast_request(data)
+            except ConnectionResetError:
+                self.leave_chat(self.current_chat)
+                raise ConnectionResetError
 
-    def leave_chat(self):
-        pass
-
+    def leave_chat(self, chat):
+        print('user {} left "{}" chat!'.format(self.account_name, chat))
+        try:
+            db.chats_list[self.current_chat].users.pop(self.account_name)
+            self.conn.send(b'quit')
+        except Exception as e:
+            print(e)
 
 
 class Chat:
     def __init__(self):
-        self.user = []
+        self.users = {}
         self.encoding = 'utf-8'
+        self.chat_history = []
 
-    def add_to_chat(self, conn):
-        self.user.append(conn)
-
-    def broadcast_request(self, conn):
-        data = conn.recv(1024).decode(self.encoding)
+    def add_to_chat(self, conn, account_name):
+        self.users[account_name] = conn
+        data = 'user {} joined "{}" chat!'.format(account_name, )
         print(data)
-        for client in self.user:
-            client.send(data.encode(self.encoding))
+        self.chat_history.append(data)
+
+    def broadcast_request(self, data):
+        if self.users:
+            print(data)
+            for client in self.users.values():
+                client.send(data.encode(self.encoding))
+
+
+
 
 def main():
     with socket.socket() as sock:
         srv = Srv(sock)
         srv.run_srv()
 
+
+
 if __name__ == '__main__':
+    chat1 = Chat()
+    chat2 = Chat()
+    db.chats_list['chat1'] = chat1
+    db.chats_list['chat2'] = chat2
     main()
 
 

@@ -73,7 +73,4 @@ class DataBase:
 
     messages_list = []
 
-    chats_list = {
-        'chat1': [],
-        'chat2': []
-    }
+    chats_list = {}

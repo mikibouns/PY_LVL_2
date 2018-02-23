@@ -3,6 +3,7 @@ import sys
 import os
 import json
 import argparse
+import time
 
 
 def get_msg(sock):
@@ -34,6 +35,9 @@ def _convert_data(data, encoding_type='utf-8'):
         except:
             data = None
     elif isinstance(data, dict):
+        data['time'] = time.ctime(time.time())
+        data = json.dumps(data).encode(encoding_type)
+    elif isinstance(data, list):
         data = json.dumps(data).encode(encoding_type)
     else:
         data = None

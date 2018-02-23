@@ -1,20 +1,51 @@
-import xlwt, xlrd
-from xlutils.copy import copy as xlcopy
-
-source_filename = "all_base_gs1.xls"
-destination_filename = "example_new.xls"
-
-read_book = xlrd.open_workbook(source_filename, on_demand=True)  # Открываем исходный документ
-worksheet = read_book.get_sheet(0)  # Читаем из первого листа
-count = 0
-while True:
-    if worksheet.cell(count, 0).value == xlrd.empty_cell.value:
-        break
-    print(worksheet.row_values(count)[0])
-    count += 1
+from sqlalchemy import Column, Integer, Unicode, UniqueConstraint, ForeignKey, create_engine, Text, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationships
 
 
-write_book = xlcopy(read_book)  # Копируем таблицу в память, в неё мы ниже будем записывать
-write_sheet = write_book.get_sheet(0)  # Будем записывать в первый лист
-write_sheet.write(0, 0, worksheet.cell_value(0, 0) + 42)  # Прибавим к значению из ячейки "A1" число 42
-write_book.save(destination_filename)  # Сохраняем таблицу
+BaseClass = declarative_base()
+metadata = BaseClass.metadata
+
+class User(BaseClass):
+    __tablename__ = 'users'
+    id = Column(Integer(), primary_key=True, autoincrement=True)
+    name = Column(Unicode())
+    password = Column(Unicode())
+
+    check_1 = UniqueConstraint('name')
+
+    def __repr__(self):
+        return "<User(name => {}, password => {})>".format(self.name, self.password)
+
+class UHistory(BaseClass):
+    __tablename__ = 'user_history'
+    id = Column(Integer(), primary_key=True, autoincrement=True)
+    entry_time = Column(DateTime)
+    ip_address = Column(Unicode())
+
+    chech_1 = UniqueConstraint('ip_address')
+
+    def __repr__(self):
+        return '<UHistory(entry time => {}, ip address =>  {})>'.format(self.entry_time, self.ip_address)
+
+class Contacts(BaseClass):
+    __tablename__ = 'contacts_list'
+    id = Column(Integer(), primary_key=True, autoincrement=True)
+    client_id = Column(Integer(), ForeignKey('users.id'))
+    owner_id = Column(Integer(), ForeignKey('users.id'))
+
+
+#######################################################################################################################
+
+
+engine = create_engine('sqlite:///messages.db', echo=True)
+metadata.create_all(engine)
+session = sessionmaker(bind=engine)()
+
+user1 = User(name='Vasia', password='12345678')
+session.add(user1)
+session.commit()
+
+
+our_user = session.query(User).filter_by(name='Vasia').first()
+print(our_user)
